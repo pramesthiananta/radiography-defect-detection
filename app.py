@@ -13,7 +13,7 @@ st.write("Model berhasil dimuat.")
 
 @st.cache_resource
 def load_model():
-    return YOLO("best (1).pt")
+    return YOLO("best.pt")
 
 model = load_model()
 
