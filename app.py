@@ -2,12 +2,11 @@ import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 import tempfile
-import os
 import pandas as pd
 
-# ============================
-# Konfigurasi halaman
-# ============================
+# ===========================================
+# KONFIGURASI HALAMAN
+# ===========================================
 
 st.set_page_config(
     page_title="Deteksi Cacat Radiografi",
@@ -15,39 +14,39 @@ st.set_page_config(
     layout="wide"
 )
 
-# ============================
-# Load Model
-# ============================
+# ===========================================
+# LOAD MODEL
+# ===========================================
 
 @st.cache_resource
 def load_model():
-    return YOLO("best.pt")      
+    return YOLO("best.pt")
 
 model = load_model()
 
-# ============================
-# Judul
-# ============================
+# ===========================================
+# JUDUL
+# ===========================================
 
 st.title("🩻 Deteksi Cacat Citra Radiografi Pengelasan")
 
-st.markdown("""
-Aplikasi ini menggunakan **YOLOv8 Segmentation** untuk mendeteksi cacat
-pada citra radiografi hasil pengelasan.
+st.write("""
+Aplikasi ini menggunakan **YOLOv8 Segmentation**
+untuk mendeteksi cacat pada citra radiografi hasil pengelasan.
 """)
 
 st.divider()
 
-# ============================
-# Upload
-# ============================
+# ===========================================
+# UPLOAD GAMBAR
+# ===========================================
 
 uploaded_file = st.file_uploader(
-    "Upload citra radiografi (.jpg/.png)",
-    type=["jpg","jpeg","png"]
+    "Upload Citra Radiografi",
+    type=["jpg", "jpeg", "png"]
 )
 
-if uploaded_file is not None:
+if uploaded_file:
 
     image = Image.open(uploaded_file)
 
@@ -57,21 +56,16 @@ if uploaded_file is not None:
         st.subheader("Gambar Asli")
         st.image(image, use_container_width=True)
 
-    # ============================
-    # Simpan sementara
-    # ============================
+    # Simpan gambar sementara
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+        image.save(tmp.name)
+        image_path = tmp.name
 
-    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
-    image.save(temp.name)
-
-    # ============================
     # Prediksi
-    # ============================
-
-    with st.spinner("Sedang mendeteksi..."):
+    with st.spinner("Sedang melakukan deteksi..."):
 
         results = model.predict(
-            source=temp.name,
+            source=image_path,
             conf=0.25,
             save=False
         )
@@ -80,75 +74,72 @@ if uploaded_file is not None:
 
     with col2:
         st.subheader("Hasil Deteksi")
-
         plotted = result.plot()
-
         st.image(plotted, use_container_width=True)
 
     st.divider()
 
-    # ============================
-    # Analisis hasil
-    # ============================
+    # ===========================================
+    # TIDAK ADA CACAT
+    # ===========================================
 
-    boxes = result.boxes
-
-    if len(boxes)==0:
+    if len(result.boxes) == 0:
 
         st.success("🟢 HASIL INSPEKSI")
 
-        st.markdown("""
-### Tidak Ditemukan Cacat
+        st.markdown("## Tidak Ditemukan Cacat")
 
-Model tidak menemukan area yang terindikasi sebagai cacat
-pada citra radiografi.
-""")
+        st.write(
+            "Model tidak menemukan area yang terindikasi sebagai cacat."
+        )
+
+    # ===========================================
+    # ADA CACAT
+    # ===========================================
 
     else:
 
         st.error("🔴 HASIL INSPEKSI")
 
-        st.markdown(f"### Cacat Terdeteksi ({len(boxes)} area)")
+        jumlah = len(result.boxes)
 
-        data=[]
+        st.markdown(f"## Cacat Terdeteksi ({jumlah} area)")
 
-        for box in boxes:
+        data = []
 
-            cls=int(box.cls)
+        for box in result.boxes:
 
-            nama=result.names[cls]
+            kelas = int(box.cls[0])
 
-            conf=float(box.conf)
+            nama = result.names[kelas]
+
+            conf = float(box.conf[0]) * 100
 
             data.append({
-                "Jenis Cacat":nama,
-                "Confidence (%)":round(conf*100,2)
+                "Jenis Cacat": nama,
+                "Confidence (%)": round(conf,2)
             })
 
-        df=pd.DataFrame(data)
+        df = pd.DataFrame(data)
 
         st.subheader("Detail Deteksi")
 
-        st.dataframe(df,use_container_width=True)
+        st.dataframe(df, use_container_width=True)
 
         st.subheader("Ringkasan")
 
-        jenis=df["Jenis Cacat"].unique()
+        jenis = ", ".join(df["Jenis Cacat"].unique())
 
-        confidence=df["Confidence (%)"].max()
+        confidence = df["Confidence (%)"].max()
 
-        st.info(
-            f"""
-Ditemukan **{len(df)} area cacat**.
+        st.info(f"""
+Jumlah cacat yang terdeteksi : **{jumlah}**
 
-Jenis cacat yang terdeteksi:
+Jenis cacat :
 
-{', '.join(jenis)}
+**{jenis}**
 
-Confidence tertinggi:
+Confidence tertinggi :
 
 **{confidence:.2f}%**
-"""
-        )
-
-os.unlink(temp.name)
+""")
