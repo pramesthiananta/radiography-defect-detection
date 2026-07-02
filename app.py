@@ -21,7 +21,7 @@ st.set_page_config(
 
 @st.cache_resource
 def load_model():
-    return YOLO("best (1).pt")      # ganti menjadi best.pt jika nanti direname
+    return YOLO("best.pt")      
 
 model = load_model()
 
